@@ -2,6 +2,7 @@
   "name": "creators-hub-backend",
   "version": "1.0.0",
   "scripts": {
+    "build": "npm install && npx prisma generate",
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "prisma:generate": "npx prisma generate",
