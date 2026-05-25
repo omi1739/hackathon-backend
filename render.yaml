@@ -2,6 +2,7 @@ services:
   - type: web
     name: creators-hub-backend
     env: node
+    rootDir: backend
 
     buildCommand: npm run build
 
