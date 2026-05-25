@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  EDITOR
+  VIEWER
+  CLIENT
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  name         String
+  avatar       String?
+  role         Role     @default(EDITOR)
+  workspaceId  String?
+  workspace    Workspace? @relation("WorkspaceMembers", fields: [workspaceId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
+  assignedTasks   Task[]     @relation("TaskAssignee")
+  createdTasks    Task[]     @relation("TaskCreator")
+  projectsCreated Project[]  @relation("ProjectCreator")
+  approvals       Approval[] @relation("ApprovalReviewer")
+  assetsUploaded  Asset[]    @relation("AssetUploader")
+  comments        Comment[]  @relation("CommentAuthor")
+  notifications   Notification[]
+  sentInvites     Invite[]   @relation("InviteSender")
+  messages        Message[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  logo        String?
+  ownerId     String
+  owner       User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  User[]       @relation("WorkspaceMembers")
+  projects Project[]
+  invites  Invite[]
+
+  @@map("workspaces")
+}
+
+model Invite {
+  id          String       @id @default(uuid())
+  email       String
+  role        Role         @default(EDITOR)
+  status      InviteStatus @default(PENDING)
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  senderId    String
+  sender      User         @relation("InviteSender", fields: [senderId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("invites")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  coverImage  String?
+  status      String   @default("ACTIVE")
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  createdById String
+  createdBy   User     @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaigns Campaign[]
+  tasks     Task[]
+
+  @@map("projects")
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  status      String   @default("PLANNING")
+  deadline    DateTime?
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks Task[]
+
+  @@map("campaigns")
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  projectId   String?
+  project     Project?   @relation(fields: [projectId], references: [id])
+  campaignId  String?
+  campaign    Campaign?  @relation(fields: [campaignId], references: [id])
+  assigneeId  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdById String
+  createdBy   User       @relation("TaskCreator", fields: [createdById], references: [id])
+  parentId    String?
+  parent      Task?      @relation("TaskSubtasks", fields: [parentId], references: [id])
+  subtasks    Task[]     @relation("TaskSubtasks")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  comments   Comment[]
+  assets     Asset[]
+  approvals  Approval[]
+
+  @@map("tasks")
+}
+
+model Approval {
+  id          String     @id @default(uuid())
+  taskId      String
+  task        Task       @relation(fields: [taskId], references: [id])
+  reviewerId  String
+  reviewer    User       @relation("ApprovalReviewer", fields: [reviewerId], references: [id])
+  status      TaskStatus
+  feedback    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("approvals")
+}
+
+model Asset {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  url         String
+  size        Int?
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+  uploadedById String
+  uploadedBy  User     @relation("AssetUploader", fields: [uploadedById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@map("assets")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  authorId  String
+  author    User     @relation("CommentAuthor", fields: [authorId], references: [id])
+  parentId  String?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  replies Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  channel   String   @default("general")
+  createdAt DateTime @default(now())
+
+  @@map("messages")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
